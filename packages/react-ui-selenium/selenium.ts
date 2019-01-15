@@ -5,7 +5,8 @@ import Mocha, {
   Func,
   AsyncFunc,
   Test,
-  TestFunction
+  TestFunction,
+  MochaGlobals
 } from "mocha";
 
 // interface Config {
@@ -26,6 +27,55 @@ import Mocha, {
 
 console.log("init");
 
+function describeFactory(file: string, common: any): SuiteFunction {
+  function describe(title: string, fn: (this: Suite) => void): Suite {
+    return common.suite.create({ title, file, fn });
+  }
+  function only(title: string, fn: (this: Suite) => void): Suite {
+    return common.suite.only({ title, file, fn });
+  }
+  function skip(title: string, fn: (this: Suite) => void): Suite {
+    return common.suite.skip({ title, file, fn });
+  }
+  describe.only = only;
+  describe.skip = skip;
+
+  return describe as SuiteFunction;
+}
+
+function itFactory(
+  suites: Suite[],
+  context: MochaGlobals,
+  file: string,
+  common: any
+): TestFunction {
+  function it(title: string, fn?: Func | AsyncFunc) {
+    const [currentSuite] = suites;
+    if (currentSuite.isPending()) {
+      fn = undefined;
+    }
+    const test = new Test(title, fn);
+    test.file = file;
+    currentSuite.addTest(test);
+    return test;
+  }
+  function only(title: string, fn: Func | AsyncFunc): Test {
+    return common.test.only(mocha, context.it(title, fn));
+  }
+  function skip(title: string): Test {
+    return context.it(title);
+  }
+  function retries(n: number): void {
+    // @ts-ignore
+    context.retries(n);
+  }
+  it.only = only;
+  it.skip = skip;
+  it.retries = retries;
+
+  return it as TestFunction;
+}
+
 // @ts-ignore
 module.exports = Mocha.interfaces.selenium = function seleniumInterface(
   suite: Suite
@@ -44,48 +94,10 @@ module.exports = Mocha.interfaces.selenium = function seleniumInterface(
     context.afterEach = common.afterEach;
     context.run = mocha.options.delay && common.runWithSuite(suite);
 
-    function describe(title: string, fn: (this: Suite) => void): Suite {
-      return common.suite.create({ title, file, fn });
-    }
-    function only(title: string, fn: (this: Suite) => void): Suite {
-      return common.suite.only({ title, file, fn });
-    }
-    function skip(title: string, fn: (this: Suite) => void): Suite {
-      return common.suite.skip({ title, file, fn });
-    }
-    // @ts-ignore
-    describe.only = only;
-    // @ts-ignore
-    describe.skip = skip;
-
-    context.describe = context.context = describe as SuiteFunction;
+    context.describe = context.context = describeFactory(file, common);
     context.xdescribe = context.xcontext = context.describe.skip;
 
-    function it(title: string, fn?: Func | AsyncFunc) {
-      const [currentSuite] = suites;
-      if (currentSuite.isPending()) {
-        fn = undefined;
-      }
-      const test = new Test(title, fn);
-      test.file = file;
-      currentSuite.addTest(test);
-      return test;
-    }
-    // @ts-ignore
-    it.only = function onlyIt(title: string, fn: Func | AsyncFunc): Test {
-      return common.test.only(mocha, context.it(title, fn));
-    };
-    // @ts-ignore
-    it.skip = function skipIt(title: string): Test {
-      return context.it(title);
-    };
-    // @ts-ignore
-    it.retries = function retries(n: number): void {
-      // @ts-ignore
-      context.retries(n);
-    };
-
-    context.it = context.specify = it as TestFunction;
+    context.it = context.specify = itFactory(suites, context, file, common);
     context.xit = context.xspecify = context.it.skip;
   });
 };
