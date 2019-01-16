@@ -8,27 +8,48 @@ import Mocha, {
   TestFunction,
   MochaGlobals
 } from "mocha";
+import { WebDriver } from "selenium-webdriver";
 
-// interface Config {
-//   gridUrl: string;
-//   hostUrl: string;
-//   browsers: { [key: string]: { browserName: string } };
-// }
+interface Config {
+  gridUrl: string;
+  hostUrl: string;
+  browsers: { [key: string]: { browserName: string } };
+}
 
-// const config: Config = {
-//   gridUrl: "http://screen-dbg:shot@grid.testkontur.ru/wd/hub",
-//   hostUrl: "http://10.4.0.17:6060/iframe.html",
-//   browsers: {
-//     chrome: { browserName: "chrome" },
-//     firefox: { browserName: "firefox" },
-//     ie11: { browserName: "internet explorer" }
-//   }
-// };
+const config: Config = {
+  gridUrl: "http://screen-dbg:shot@grid.testkontur.ru/wd/hub",
+  hostUrl: "http://10.4.0.17:6060/iframe.html",
+  browsers: {
+    chrome: { browserName: "chrome" },
+    firefox: { browserName: "firefox" },
+    ie11: { browserName: "internet explorer" }
+  }
+};
 
 console.log("init");
 
-function describeFactory(file: string, common: any): SuiteFunction {
+interface MochaContext extends MochaGlobals {
+  retries: (n: number) => void;
+  browser: WebDriver;
+}
+
+function describeFactory(
+  suites: Suite[],
+  file: string,
+  common: any
+): SuiteFunction {
   function describe(title: string, fn: (this: Suite) => void): Suite {
+    const [currentSuite] = suites;
+    if (currentSuite.parent) {
+      // create browser
+      const kind = encodeURIComponent(currentSuite.parent.title);
+      const story = encodeURIComponent(currentSuite.title);
+      const storyPath = `?selectedKind=${kind}&selectedStory=${story}`;
+
+      console.log(storyPath);
+      // beforeEach() goto url
+    }
+
     return common.suite.create({ title, file, fn });
   }
   function only(title: string, fn: (this: Suite) => void): Suite {
@@ -37,7 +58,9 @@ function describeFactory(file: string, common: any): SuiteFunction {
   function skip(title: string, fn: (this: Suite) => void): Suite {
     return common.suite.skip({ title, file, fn });
   }
+  // @ts-ignore
   describe.only = only;
+  // @ts-ignore
   describe.skip = skip;
 
   return describe as SuiteFunction;
@@ -45,7 +68,7 @@ function describeFactory(file: string, common: any): SuiteFunction {
 
 function itFactory(
   suites: Suite[],
-  context: MochaGlobals,
+  context: MochaContext,
   file: string,
   common: any
 ): TestFunction {
@@ -66,11 +89,13 @@ function itFactory(
     return context.it(title);
   }
   function retries(n: number): void {
-    // @ts-ignore
     context.retries(n);
   }
+  // @ts-ignore
   it.only = only;
+  // @ts-ignore
   it.skip = skip;
+  // @ts-ignore
   it.retries = retries;
 
   return it as TestFunction;
@@ -81,6 +106,12 @@ module.exports = Mocha.interfaces.selenium = function seleniumInterface(
   suite: Suite
 ) {
   const suites = [suite];
+
+  // Object.keys(config.browsers).forEach(browserName => {
+  //   const browserSuite = new Suite(browserName, suite.ctx);
+  //   const suites = [browserSuite];
+  // });
+
   suite.on("pre-require", function preRequire(context, file, mocha) {
     const common = require("mocha/lib/interfaces/common")(
       suites,
@@ -94,9 +125,10 @@ module.exports = Mocha.interfaces.selenium = function seleniumInterface(
     context.afterEach = common.afterEach;
     context.run = mocha.options.delay && common.runWithSuite(suite);
 
-    context.describe = context.context = describeFactory(file, common);
+    context.describe = context.context = describeFactory(suites, file, common);
     context.xdescribe = context.xcontext = context.describe.skip;
 
+    // @ts-ignore
     context.it = context.specify = itFactory(suites, context, file, common);
     context.xit = context.xspecify = context.it.skip;
   });
