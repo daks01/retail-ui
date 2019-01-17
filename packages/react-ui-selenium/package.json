@@ -4,7 +4,7 @@
   "main": "index.js",
   "license": "MIT",
   "scripts": {
-    "test": "mocha --opts ./mocha.opts --verbose"
+    "test": "mocha --opts ./mocha.opts"
   },
   "devDependencies": {
     "@types/chai": "^4.1.7",

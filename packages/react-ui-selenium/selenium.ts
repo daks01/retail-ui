@@ -8,7 +8,7 @@ import Mocha, {
   MochaGlobals
 } from "mocha";
 import commonInterface, { CommonFunctions } from "mocha/lib/interfaces/common";
-import { Builder } from "selenium-webdriver";
+import { Builder, until, By } from "selenium-webdriver";
 
 interface Config {
   gridUrl: string;
@@ -18,7 +18,7 @@ interface Config {
 
 const config: Config = {
   gridUrl: "http://screen-dbg:shot@grid.testkontur.ru/wd/hub",
-  hostUrl: "http://10.4.0.17:6060/iframe.html",
+  hostUrl: "http://10.34.0.149:6060/iframe.html",
   browsers: {
     chrome: { browserName: "chrome" },
     firefox: { browserName: "firefox" },
@@ -31,37 +31,20 @@ interface MochaContext extends MochaGlobals {
   retries: (n: number) => MochaContext;
 }
 
-function browserDescriber(suites: Suite[], fn: (this: Suite) => void): Suite[] {
-  // @ts-ignore `context` and `mocha` args not used here
-  const commonGlobal = commonInterface(suites);
-
-  return Object.entries(config.browsers).map(([browser, capabilities]) => {
-    const browserSuite = commonGlobal.suite.create({
-      title: browser,
-      file: "",
-      fn
-    });
-
-    browserSuite.beforeAll(async function() {
-      browserSuite.ctx.browser = await new Builder()
-        .usingServer("http://screen-dbg:shot@grid.testkontur.ru/wd/hub")
-        .withCapabilities(capabilities)
-        .build();
-    });
-
-    return browserSuite;
-  });
-}
-
 function describeFactory(
+  browserSuites: Suite[],
   suites: Suite[],
   file: string,
   common: CommonFunctions
 ): SuiteFunction {
   function describe(title: string, fn: (this: Suite) => void): Suite[] | Suite {
     if (suites.length === 1) {
-      return browserDescriber(suites, function describeFn() {
+      return browserSuites.map(suite => {
+        suites.unshift(suite);
+
         const kindSuite = common.suite.create({ title, file, fn });
+
+        suites.shift();
 
         if (kindSuite.parent) {
           Object.assign(kindSuite.ctx, kindSuite.parent.ctx, { kind: title });
@@ -69,12 +52,30 @@ function describeFactory(
 
         return kindSuite;
       });
+      // return browserDescriber(suites, function describeFn() {
+      //   const kindSuite = common.suite.create({ title, file, fn });
+
+      //   if (kindSuite.parent) {
+      //     Object.assign(kindSuite.ctx, kindSuite.parent.ctx, { kind: title });
+      //   }
+
+      //   return kindSuite;
+      // });
     }
 
     const storySuite = common.suite.create({ title, file, fn });
 
     if (storySuite.parent) {
       Object.assign(storySuite.ctx, storySuite.parent.ctx, { story: title });
+
+      storySuite.beforeEach(async function() {
+        const kind = encodeURIComponent(this.kind);
+        const story = encodeURIComponent(this.story);
+        await this.browser.get(
+          `${config.hostUrl}?selectedKind=${kind}&selectedStory=${story}`
+        );
+        await this.browser.wait(until.elementLocated(By.css("#test-element")));
+      });
     }
 
     return storySuite;
@@ -82,6 +83,7 @@ function describeFactory(
   // TODO only browsers. Do we need check suite.length?
   // run for only specified browsers
   function only(title: string, fn: (this: Suite) => void): Suite[] {
+    // @ts-ignore
     return browserDescriber(suites, function describeFn() {
       return common.suite.only({ title, file, fn });
     });
@@ -89,6 +91,7 @@ function describeFactory(
   // TODO skip browsers. Do we need check suite.length?
   // skip specified browsers
   function skip(title: string, fn: (this: Suite) => void): Suite[] {
+    // @ts-ignore
     return browserDescriber(suites, function describeFn() {
       return common.suite.skip({ title, file, fn });
     });
@@ -144,6 +147,27 @@ module.exports = Mocha.interfaces.selenium = function seleniumInterface(
   suite: Suite
 ) {
   const suites = [suite];
+  const browserSuites: Suite[] = [];
+
+  // @ts-ignore `context` and `mocha` args not used here
+  const commonGlobal = commonInterface(suites);
+
+  Object.entries(config.browsers).forEach(([browser, capabilities]) => {
+    const browserSuite = commonGlobal.suite.create({
+      title: browser,
+      file: "",
+      fn() {}
+    });
+
+    browserSuite.beforeAll(async function() {
+      browserSuite.ctx.browser = await new Builder()
+        .usingServer(config.gridUrl)
+        .withCapabilities(capabilities)
+        .build();
+    });
+
+    browserSuites.push(browserSuite);
+  });
 
   suite.on("pre-require", function preRequire(
     context: MochaContext,
@@ -152,7 +176,7 @@ module.exports = Mocha.interfaces.selenium = function seleniumInterface(
   ) {
     const common = commonInterface(suites, context, mocha);
 
-    const describe = describeFactory(suites, file, common);
+    const describe = describeFactory(browserSuites, suites, file, common);
     const it = itFactory(suites, context, file, common);
 
     context.before = common.before;
@@ -168,37 +192,6 @@ module.exports = Mocha.interfaces.selenium = function seleniumInterface(
     context.xit = context.xspecify = context.it.skip;
   });
 };
-
-// Redifine BDD
-// @ts-ignore
-// module.exports = Mocha.interfaces.selenium = function seleniumInterface(suite: Suite) {
-//   console.log("suite");
-
-//   const browsers: Array<{ name: string; browser: WebDriver }> = [];
-
-//   suite.beforeAll(async () => {
-//     console.log("beforeAll");
-//     // tslint:disable-next-line: forin
-//     for (const name in config.browsers) {
-//       const browser = await new Builder()
-//         .usingServer(config.gridUrl)
-//         .withCapabilities(config.browsers[name])
-//         .build();
-//       browsers.push({ name, browser });
-//     }
-//   });
-
-//   suite.on("pre-require", context => {
-//     console.log("pre-require");
-//     const { describe } = context;
-//     // @ts-ignore
-//     context.describe = function(title: string, fn: (this: Suite) => void) {
-//       console.log("describe", arguments[0]);
-
-//       return (describe as SuiteFunction).call(this, title, fn);
-//     };
-//   });
-// };
 
 // browsers
 // parallel
