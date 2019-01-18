@@ -26,9 +26,30 @@ const config: Config = {
   }
 };
 
-// NOTE @types/mocha don't have `retries` method in MochaGlobals
-interface MochaContext extends MochaGlobals {
-  retries: (n: number) => MochaContext;
+// TODO Tests?
+
+function createBrowserSuites(suites: Suite[]) {
+  // @ts-ignore `context` and `mocha` args not used here
+  const commonGlobal = commonInterface(suites);
+
+  return Object.entries(config.browsers).map(([browser, capabilities]) => {
+    const browserSuite = commonGlobal.suite.create({
+      title: browser,
+      file: "",
+      fn() {
+        /* noop */
+      }
+    });
+
+    browserSuite.beforeAll(async () => {
+      browserSuite.ctx.browser = await new Builder()
+        .usingServer(config.gridUrl)
+        .withCapabilities(capabilities)
+        .build();
+    });
+
+    return browserSuite;
+  });
 }
 
 function describeFactory(
@@ -39,8 +60,8 @@ function describeFactory(
 ): SuiteFunction {
   function describe(title: string, fn: (this: Suite) => void): Suite[] | Suite {
     if (suites.length === 1) {
-      return browserSuites.map(suite => {
-        suites.unshift(suite);
+      return browserSuites.map(browserSuite => {
+        suites.unshift(browserSuite);
 
         const kindSuite = common.suite.create({ title, file, fn });
 
@@ -52,15 +73,6 @@ function describeFactory(
 
         return kindSuite;
       });
-      // return browserDescriber(suites, function describeFn() {
-      //   const kindSuite = common.suite.create({ title, file, fn });
-
-      //   if (kindSuite.parent) {
-      //     Object.assign(kindSuite.ctx, kindSuite.parent.ctx, { kind: title });
-      //   }
-
-      //   return kindSuite;
-      // });
     }
 
     const storySuite = common.suite.create({ title, file, fn });
@@ -82,7 +94,12 @@ function describeFactory(
   }
   // TODO only browsers. Do we need check suite.length?
   // run for only specified browsers
-  function only(title: string, fn: (this: Suite) => void): Suite[] {
+  function only(
+    browsers: string,
+    title: string,
+    fn: (this: Suite) => void
+  ): Suite[] {
+    // traverce up, check browser
     // @ts-ignore
     return browserDescriber(suites, function describeFn() {
       return common.suite.only({ title, file, fn });
@@ -107,7 +124,7 @@ function describeFactory(
 
 function itFactory(
   suites: Suite[],
-  context: MochaContext,
+  context: MochaGlobals,
   file: string,
   common: CommonFunctions
 ): TestFunction {
@@ -130,6 +147,7 @@ function itFactory(
     return context.it(title);
   }
   function retries(n: number): void {
+    // @ts-ignore
     context.retries(n);
   }
   // @ts-ignore
@@ -143,37 +161,13 @@ function itFactory(
 }
 
 // @ts-ignore
-module.exports = Mocha.interfaces.selenium = function seleniumInterface(
+export default (Mocha.interfaces.selenium = function seleniumInterface(
   suite: Suite
 ) {
   const suites = [suite];
-  const browserSuites: Suite[] = [];
+  const browserSuites = createBrowserSuites(suites);
 
-  // @ts-ignore `context` and `mocha` args not used here
-  const commonGlobal = commonInterface(suites);
-
-  Object.entries(config.browsers).forEach(([browser, capabilities]) => {
-    const browserSuite = commonGlobal.suite.create({
-      title: browser,
-      file: "",
-      fn() {}
-    });
-
-    browserSuite.beforeAll(async function() {
-      browserSuite.ctx.browser = await new Builder()
-        .usingServer(config.gridUrl)
-        .withCapabilities(capabilities)
-        .build();
-    });
-
-    browserSuites.push(browserSuite);
-  });
-
-  suite.on("pre-require", function preRequire(
-    context: MochaContext,
-    file,
-    mocha
-  ) {
+  suite.on("pre-require", function preRequire(context, file, mocha) {
     const common = commonInterface(suites, context, mocha);
 
     const describe = describeFactory(browserSuites, suites, file, common);
@@ -191,7 +185,7 @@ module.exports = Mocha.interfaces.selenium = function seleniumInterface(
     context.it = context.specify = it;
     context.xit = context.xspecify = context.it.skip;
   });
-};
+});
 
 // browsers
 // parallel
