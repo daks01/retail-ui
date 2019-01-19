@@ -4,13 +4,14 @@
   "main": "index.js",
   "license": "MIT",
   "scripts": {
-    "test": "mocha --opts ./mocha.opts"
+    "test": "cross-env TS_NODE_FILES=true TS_NODE_TRANSPILE_ONLY=true mocha --opts ./mocha.opts"
   },
   "devDependencies": {
     "@types/chai": "^4.1.7",
     "@types/mocha": "^5.2.5",
     "@types/selenium-webdriver": "^3.0.14",
     "chai": "^4.2.0",
+    "cross-env": "^5.2.0",
     "mocha": "^5.2.0",
     "selenium-webdriver": "^4.0.0-alpha.1",
     "source-map-support": "^0.5.9",

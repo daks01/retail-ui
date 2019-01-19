@@ -18,7 +18,7 @@ interface Config {
 
 const config: Config = {
   gridUrl: "http://screen-dbg:shot@grid.testkontur.ru/wd/hub",
-  hostUrl: "http://10.34.0.149:6060/iframe.html",
+  hostUrl: "http://10.4.2.17:6060/iframe.html",
   browsers: {
     chrome: { browserName: "chrome" },
     firefox: { browserName: "firefox" },
@@ -32,14 +32,14 @@ function createBrowserSuites(suites: Suite[]) {
   // @ts-ignore `context` and `mocha` args not used here
   const commonGlobal = commonInterface(suites);
 
-  return Object.entries(config.browsers).map(([browser, capabilities]) => {
+  return Object.entries(config.browsers).map(([browserName, capabilities]) => {
     const browserSuite = commonGlobal.suite.create({
-      title: browser,
+      title: browserName,
       file: "",
-      fn() {
-        /* noop */
-      }
+      fn: () => null
     });
+
+    browserSuite.ctx.browserName = browserName;
 
     browserSuite.beforeAll(async () => {
       browserSuite.ctx.browser = await new Builder()
@@ -52,14 +52,37 @@ function createBrowserSuites(suites: Suite[]) {
   });
 }
 
+function storySuiteFactory(
+  title: string,
+  parentSuite: Suite,
+  suiteCreator: () => Suite
+) {
+  const storySuite = suiteCreator();
+
+  Object.assign(storySuite.ctx, parentSuite.ctx, { story: title });
+
+  storySuite.beforeEach(async function() {
+    const kind = encodeURIComponent(this.kind);
+    const story = encodeURIComponent(this.story);
+    await this.browser.get(
+      `${config.hostUrl}?selectedKind=${kind}&selectedStory=${story}`
+    );
+    await this.browser.wait(until.elementLocated(By.css("#test-element")));
+  });
+
+  return storySuite;
+}
+
 function describeFactory(
   browserSuites: Suite[],
   suites: Suite[],
   file: string,
   common: CommonFunctions
 ): SuiteFunction {
-  function describe(title: string, fn: (this: Suite) => void): Suite[] | Suite {
-    if (suites.length === 1) {
+  function describe(title: string, fn: (this: Suite) => void): Suite | Suite[] {
+    const [parentSuite] = suites;
+
+    if (parentSuite.root) {
       return browserSuites.map(browserSuite => {
         suites.unshift(browserSuite);
 
@@ -67,58 +90,60 @@ function describeFactory(
 
         suites.shift();
 
-        if (kindSuite.parent) {
-          Object.assign(kindSuite.ctx, kindSuite.parent.ctx, { kind: title });
-        }
+        Object.assign(kindSuite.ctx, parentSuite.ctx, { kind: title });
 
         return kindSuite;
       });
     }
 
-    const storySuite = common.suite.create({ title, file, fn });
-
-    if (storySuite.parent) {
-      Object.assign(storySuite.ctx, storySuite.parent.ctx, { story: title });
-
-      storySuite.beforeEach(async function() {
-        const kind = encodeURIComponent(this.kind);
-        const story = encodeURIComponent(this.story);
-        await this.browser.get(
-          `${config.hostUrl}?selectedKind=${kind}&selectedStory=${story}`
-        );
-        await this.browser.wait(until.elementLocated(By.css("#test-element")));
-      });
-    }
-
-    return storySuite;
+    return storySuiteFactory(title, parentSuite, () =>
+      common.suite.create({ title, file, fn })
+    );
   }
-  // TODO only browsers. Do we need check suite.length?
-  // run for only specified browsers
+
   function only(
-    browsers: string,
+    browsers: string[],
     title: string,
     fn: (this: Suite) => void
-  ): Suite[] {
-    // traverce up, check browser
-    // @ts-ignore
-    return browserDescriber(suites, function describeFn() {
-      return common.suite.only({ title, file, fn });
-    });
+  ): Suite {
+    // TODO root?
+
+    const [parentSuite] = suites;
+    const isExclusive = browsers.includes(parentSuite.ctx.browserName);
+
+    return storySuiteFactory(
+      title,
+      parentSuite,
+      () =>
+        isExclusive
+          ? common.suite.only({ title, file, fn })
+          : common.suite.create({ title, file, fn })
+    );
   }
-  // TODO skip browsers. Do we need check suite.length?
-  // skip specified browsers
-  function skip(title: string, fn: (this: Suite) => void): Suite[] {
-    // @ts-ignore
-    return browserDescriber(suites, function describeFn() {
-      return common.suite.skip({ title, file, fn });
-    });
+
+  function skip(
+    browsers: string[],
+    title: string,
+    fn: (this: Suite) => void
+  ): Suite {
+    // TODO root?
+
+    const [parentSuite] = suites;
+    const shouldSkip = browsers.includes(parentSuite.ctx.browserName);
+
+    return storySuiteFactory(
+      title,
+      parentSuite,
+      () =>
+        shouldSkip
+          ? common.suite.skip({ title, file, fn })
+          : common.suite.create({ title, file, fn })
+    );
   }
-  // @ts-ignore
+
   describe.only = only;
-  // @ts-ignore
   describe.skip = skip;
 
-  // @ts-ignore
   return describe as SuiteFunction;
 }
 
