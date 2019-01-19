@@ -4,7 +4,8 @@ import {
   PendingSuiteFunction,
   Suite,
   MochaGlobals,
-  Context
+  Context,
+  Suite
 } from "mocha";
 import { WebDriver } from "selenium-webdriver";
 
@@ -28,14 +29,14 @@ declare module "mocha" {
   }
 
   export interface ExclusiveSuiteFunction extends ExclusiveSuiteFunction {
-    (browsers: string[], title: string, fn: (this: Suite) => void): Suite;
+    (browsers: string[], title: string, fn: (this: Suite) => void):
+      | Suite
+      | Suite[];
   }
 
   export interface PendingSuiteFunction extends PendingSuiteFunction {
-    (
-      browsers: string[],
-      title: string,
-      fn: (this: Suite) => void
-    ): Suite | void;
+    (browsers: string[], title: string, fn: (this: Suite) => void):
+      | Suite
+      | Suite[];
   }
 }

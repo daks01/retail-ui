@@ -7,7 +7,10 @@ import Mocha, {
   TestFunction,
   MochaGlobals
 } from "mocha";
-import commonInterface, { CommonFunctions } from "mocha/lib/interfaces/common";
+import commonInterface, {
+  CommonFunctions,
+  CreateOptions
+} from "mocha/lib/interfaces/common";
 import { Builder, until, By } from "selenium-webdriver";
 
 interface Config {
@@ -27,6 +30,10 @@ const config: Config = {
 };
 
 // TODO Tests?
+// browsers
+// parallel
+// TODO react-selenium-testing
+// TODO refactor DRY
 
 function createBrowserSuites(suites: Suite[]) {
   // @ts-ignore `context` and `mocha` args not used here
@@ -53,20 +60,19 @@ function createBrowserSuites(suites: Suite[]) {
 }
 
 function storySuiteFactory(
-  title: string,
-  parentSuite: Suite,
+  story: string,
+  kindSuite: Suite,
   suiteCreator: () => Suite
 ) {
   const storySuite = suiteCreator();
 
-  Object.assign(storySuite.ctx, parentSuite.ctx, { story: title });
+  Object.assign(storySuite.ctx, kindSuite.ctx, { story });
 
   storySuite.beforeEach(async function() {
-    const kind = encodeURIComponent(this.kind);
-    const story = encodeURIComponent(this.story);
-    await this.browser.get(
-      `${config.hostUrl}?selectedKind=${kind}&selectedStory=${story}`
-    );
+    const selectedKind = encodeURIComponent(this.kind);
+    const selectedStory = encodeURIComponent(this.story);
+    const storybookQuery = `selectedKind=${selectedKind}&selectedStory=${selectedStory}`;
+    await this.browser.get(`${config.hostUrl}?${storybookQuery}`);
     await this.browser.wait(until.elementLocated(By.css("#test-element")));
   });
 
@@ -90,7 +96,7 @@ function describeFactory(
 
         suites.shift();
 
-        Object.assign(kindSuite.ctx, parentSuite.ctx, { kind: title });
+        Object.assign(kindSuite.ctx, browserSuite.ctx, { kind: title });
 
         return kindSuite;
       });
@@ -105,10 +111,25 @@ function describeFactory(
     browsers: string[],
     title: string,
     fn: (this: Suite) => void
-  ): Suite {
-    // TODO root?
-
+  ): Suite | Suite[] {
     const [parentSuite] = suites;
+
+    if (parentSuite.root) {
+      return browserSuites.map(browserSuite => {
+        suites.unshift(browserSuite);
+
+        const kindSuite = browsers.includes(browserSuite.ctx.browserName)
+          ? common.suite.only({ title, file, fn })
+          : common.suite.create({ title, file, fn });
+
+        suites.shift();
+
+        Object.assign(kindSuite.ctx, browserSuite.ctx, { kind: title });
+
+        return kindSuite;
+      });
+    }
+
     const isExclusive = browsers.includes(parentSuite.ctx.browserName);
 
     return storySuiteFactory(
@@ -125,10 +146,25 @@ function describeFactory(
     browsers: string[],
     title: string,
     fn: (this: Suite) => void
-  ): Suite {
-    // TODO root?
-
+  ): Suite | Suite[] {
     const [parentSuite] = suites;
+
+    if (parentSuite.root) {
+      return browserSuites.map(browserSuite => {
+        suites.unshift(browserSuite);
+
+        const kindSuite = browsers.includes(browserSuite.ctx.browserName)
+          ? common.suite.skip({ title, file, fn })
+          : common.suite.create({ title, file, fn });
+
+        suites.shift();
+
+        Object.assign(kindSuite.ctx, browserSuite.ctx, { kind: title });
+
+        return kindSuite;
+      });
+    }
+
     const shouldSkip = browsers.includes(parentSuite.ctx.browserName);
 
     return storySuiteFactory(
@@ -211,10 +247,6 @@ export default (Mocha.interfaces.selenium = function seleniumInterface(
     context.xit = context.xspecify = context.it.skip;
   });
 });
-
-// browsers
-// parallel
-// TODO react-selenium-testing
 
 // simple API
 /*
