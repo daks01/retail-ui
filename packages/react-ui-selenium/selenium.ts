@@ -1,11 +1,11 @@
 import Mocha, {
   Suite,
-  SuiteFunction,
   Func,
   AsyncFunc,
   Test,
   TestFunction,
-  MochaGlobals
+  MochaGlobals,
+  SuiteFunction
 } from "mocha";
 import commonInterface, {
   CommonFunctions,
@@ -34,6 +34,13 @@ const config: Config = {
 // parallel
 // TODO react-selenium-testing
 // TODO refactor DRY
+
+type CreateSuite = (options: CreateOptions, parentSuite: Suite) => Suite;
+type Describer = (
+  title: string,
+  fn: (this: Suite) => void,
+  createSuite: CreateSuite
+) => Suite | Suite[];
 
 function createBrowserSuites(suites: Suite[]) {
   // @ts-ignore `context` and `mocha` args not used here
@@ -79,32 +86,46 @@ function storySuiteFactory(
   return storySuite;
 }
 
-function describeFactory(
+function createDescriber(
   browserSuites: Suite[],
   suites: Suite[],
-  file: string,
-  common: CommonFunctions
-): SuiteFunction {
-  function describe(title: string, fn: (this: Suite) => void): Suite | Suite[] {
+  file: string
+): Describer {
+  return function describer(
+    title: string,
+    fn: (this: Suite) => void,
+    createSuite: CreateSuite
+  ) {
     const [parentSuite] = suites;
 
     if (parentSuite.root) {
       return browserSuites.map(browserSuite => {
         suites.unshift(browserSuite);
 
-        const kindSuite = common.suite.create({ title, file, fn });
+        const kindSuite = createSuite({ title, fn, file }, browserSuite);
 
         suites.shift();
 
-        Object.assign(kindSuite.ctx, browserSuite.ctx, { kind: title });
+        Object.assign(kindSuite.ctx, browserSuite.ctx, {
+          kind: title
+        });
 
         return kindSuite;
       });
     }
 
     return storySuiteFactory(title, parentSuite, () =>
-      common.suite.create({ title, file, fn })
+      createSuite({ title, fn, file }, parentSuite)
     );
+  };
+}
+
+function describeFactory(
+  describer: Describer,
+  common: CommonFunctions
+): SuiteFunction {
+  function describe(title: string, fn: (this: Suite) => void) {
+    return describer(title, fn, options => common.suite.create(options));
   }
 
   function only(
@@ -112,33 +133,13 @@ function describeFactory(
     title: string,
     fn: (this: Suite) => void
   ): Suite | Suite[] {
-    const [parentSuite] = suites;
-
-    if (parentSuite.root) {
-      return browserSuites.map(browserSuite => {
-        suites.unshift(browserSuite);
-
-        const kindSuite = browsers.includes(browserSuite.ctx.browserName)
-          ? common.suite.only({ title, file, fn })
-          : common.suite.create({ title, file, fn });
-
-        suites.shift();
-
-        Object.assign(kindSuite.ctx, browserSuite.ctx, { kind: title });
-
-        return kindSuite;
-      });
-    }
-
-    const isExclusive = browsers.includes(parentSuite.ctx.browserName);
-
-    return storySuiteFactory(
+    return describer(
       title,
-      parentSuite,
-      () =>
-        isExclusive
-          ? common.suite.only({ title, file, fn })
-          : common.suite.create({ title, file, fn })
+      fn,
+      (options, parentSuite) =>
+        browsers.includes(parentSuite.ctx.browserName)
+          ? common.suite.only(options)
+          : common.suite.create(options)
     );
   }
 
@@ -147,33 +148,13 @@ function describeFactory(
     title: string,
     fn: (this: Suite) => void
   ): Suite | Suite[] {
-    const [parentSuite] = suites;
-
-    if (parentSuite.root) {
-      return browserSuites.map(browserSuite => {
-        suites.unshift(browserSuite);
-
-        const kindSuite = browsers.includes(browserSuite.ctx.browserName)
-          ? common.suite.skip({ title, file, fn })
-          : common.suite.create({ title, file, fn });
-
-        suites.shift();
-
-        Object.assign(kindSuite.ctx, browserSuite.ctx, { kind: title });
-
-        return kindSuite;
-      });
-    }
-
-    const shouldSkip = browsers.includes(parentSuite.ctx.browserName);
-
-    return storySuiteFactory(
+    return describer(
       title,
-      parentSuite,
-      () =>
-        shouldSkip
-          ? common.suite.skip({ title, file, fn })
-          : common.suite.create({ title, file, fn })
+      fn,
+      (options, parentSuite) =>
+        browsers.includes(parentSuite.ctx.browserName)
+          ? common.suite.skip(options)
+          : common.suite.create(options)
     );
   }
 
@@ -200,22 +181,28 @@ function itFactory(
     suite.addTest(test);
     return test;
   }
-  function only(title: string, fn: Func | AsyncFunc): Test {
+  // TODO only browsers
+  function only(
+    browsers: string[],
+    title: string,
+    fn?: Func | AsyncFunc
+  ): Test {
     return common.test.only(mocha, context.it(title, fn));
   }
   // TODO skip browsers
-  function skip(title: string): Test {
-    return context.it(title);
+  function skip(
+    browsers: string[],
+    title: string,
+    fn?: Func | AsyncFunc
+  ): Test {
+    return context.it(title, fn);
   }
   function retries(n: number): void {
-    // @ts-ignore
     context.retries(n);
   }
-  // @ts-ignore
+
   it.only = only;
-  // @ts-ignore
   it.skip = skip;
-  // @ts-ignore
   it.retries = retries;
 
   return it as TestFunction;
@@ -231,7 +218,8 @@ export default (Mocha.interfaces.selenium = function seleniumInterface(
   suite.on("pre-require", function preRequire(context, file, mocha) {
     const common = commonInterface(suites, context, mocha);
 
-    const describe = describeFactory(browserSuites, suites, file, common);
+    const describer = createDescriber(browserSuites, suites, file);
+    const describe = describeFactory(describer, common);
     const it = itFactory(suites, context, file, common);
 
     context.before = common.before;

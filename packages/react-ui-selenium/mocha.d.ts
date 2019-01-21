@@ -2,10 +2,15 @@ import {
   SuiteFunction,
   ExclusiveSuiteFunction,
   PendingSuiteFunction,
+  TestFunction,
+  ExclusiveTestFunction,
+  PendingTestFunction,
   Suite,
+  Test,
+  Func,
+  AsyncFunc,
   MochaGlobals,
-  Context,
-  Suite
+  Context
 } from "mocha";
 import { WebDriver } from "selenium-webdriver";
 
@@ -38,5 +43,18 @@ declare module "mocha" {
     (browsers: string[], title: string, fn: (this: Suite) => void):
       | Suite
       | Suite[];
+  }
+
+  export interface TestFunction extends TestFunction {
+    only: ExclusiveTestFunction;
+    skip: PendingTestFunction;
+  }
+
+  export interface ExclusiveTestFunction extends ExclusiveTestFunction {
+    (browsers: string[], title: string, fn?: Func | AsyncFunc): Test;
+  }
+
+  export interface PendingTestFunction extends PendingTestFunction {
+    (browsers: string[], title: string, fn?: Func | AsyncFunc): Test;
   }
 }
