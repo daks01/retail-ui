@@ -4,7 +4,6 @@ import Mocha, {
   AsyncFunc,
   Test,
   TestFunction,
-  MochaGlobals,
   SuiteFunction
 } from "mocha";
 import commonInterface, {
@@ -21,7 +20,7 @@ interface Config {
 
 const config: Config = {
   gridUrl: "http://screen-dbg:shot@grid.testkontur.ru/wd/hub",
-  hostUrl: "http://10.4.2.17:6060/iframe.html",
+  hostUrl: "http://10.34.0.149:6060/iframe.html",
   browsers: {
     chrome: { browserName: "chrome" },
     firefox: { browserName: "firefox" },
@@ -171,7 +170,7 @@ function itFactory(
   common: CommonFunctions
 ): TestFunction {
   // NOTE copy-paste from bdd-interface
-  function it(title: string, fn?: Func | AsyncFunc) {
+  function it(title: string, fn?: Func | AsyncFunc): Test {
     const [parentSuite] = suites;
     if (parentSuite.isPending()) {
       fn = undefined;
@@ -202,16 +201,16 @@ function itFactory(
     const [parentSuite] = suites;
 
     return browsers.includes(parentSuite.ctx.browserName)
-      ? common.test.skip(title)
+      ? it(title)
       : it(title, fn);
   }
-  function retries(n: number): void {
-    common.test.retries(n);
-  }
+  // function retries(n: number): void {
+  //   common.test.retries(n);
+  // }
 
   it.only = only;
   it.skip = skip;
-  it.retries = retries;
+  // it.retries = retries;
 
   // NOTE We can't redefine interface, only extend it
   return it as TestFunction;
