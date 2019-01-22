@@ -95,7 +95,7 @@ function createDescriber(
     title: string,
     fn: (this: Suite) => void,
     createSuite: CreateSuite
-  ) {
+  ): Suite | Suite[] {
     const [parentSuite] = suites;
 
     if (parentSuite.root) {
@@ -161,50 +161,59 @@ function describeFactory(
   describe.only = only;
   describe.skip = skip;
 
+  // NOTE We can't redefine interface, only extend it
   return describe as SuiteFunction;
 }
 
 function itFactory(
   suites: Suite[],
-  context: MochaGlobals,
   file: string,
   common: CommonFunctions
 ): TestFunction {
   // NOTE copy-paste from bdd-interface
   function it(title: string, fn?: Func | AsyncFunc) {
-    const [suite] = suites;
-    if (suite.isPending()) {
+    const [parentSuite] = suites;
+    if (parentSuite.isPending()) {
       fn = undefined;
     }
     const test = new Test(title, fn);
     test.file = file;
-    suite.addTest(test);
+    parentSuite.addTest(test);
     return test;
   }
-  // TODO only browsers
+
   function only(
     browsers: string[],
     title: string,
     fn?: Func | AsyncFunc
   ): Test {
-    return common.test.only(mocha, context.it(title, fn));
+    const [parentSuite] = suites;
+
+    return browsers.includes(parentSuite.ctx.browserName)
+      ? common.test.only(mocha, it(title, fn))
+      : it(title, fn);
   }
-  // TODO skip browsers
+
   function skip(
     browsers: string[],
     title: string,
     fn?: Func | AsyncFunc
-  ): Test {
-    return context.it(title, fn);
+  ): Test | void {
+    const [parentSuite] = suites;
+
+    return browsers.includes(parentSuite.ctx.browserName)
+      ? common.test.skip(title)
+      : it(title, fn);
   }
   function retries(n: number): void {
-    context.retries(n);
+    common.test.retries(n);
   }
 
   it.only = only;
   it.skip = skip;
   it.retries = retries;
 
+  // NOTE We can't redefine interface, only extend it
   return it as TestFunction;
 }
 
@@ -220,7 +229,7 @@ export default (Mocha.interfaces.selenium = function seleniumInterface(
 
     const describer = createDescriber(browserSuites, suites, file);
     const describe = describeFactory(describer, common);
-    const it = itFactory(suites, context, file, common);
+    const it = itFactory(suites, file, common);
 
     context.before = common.before;
     context.after = common.after;
@@ -238,9 +247,8 @@ export default (Mocha.interfaces.selenium = function seleniumInterface(
 
 // simple API
 /*
-
 describe("Button", () => {
-  describe("Story", browser => {
+  describe("Story", () => {
     it("scenario", () => {
       // click
       // hover
@@ -248,7 +256,7 @@ describe("Button", () => {
     });
 
     it("idle", () => {
-      browser
+      this.browser
         .getElement("#test-element")
         .capture("hover", { ignore: "loader" })
         .capture("click", '[class^="123"]')
@@ -259,7 +267,6 @@ describe("Button", () => {
     it("");
   });
 });
-
 */
 
 // Draft
