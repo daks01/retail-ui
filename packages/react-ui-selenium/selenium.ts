@@ -1,6 +1,5 @@
 import Mocha, {
   Suite,
-  Func,
   AsyncFunc,
   Test,
   TestFunction,
@@ -170,7 +169,7 @@ function itFactory(
   common: CommonFunctions
 ): TestFunction {
   // NOTE copy-paste from bdd-interface
-  function it(title: string, fn?: Func | AsyncFunc): Test {
+  function it(title: string, fn?: AsyncFunc): Test {
     const [parentSuite] = suites;
     if (parentSuite.isPending()) {
       fn = undefined;
@@ -181,11 +180,7 @@ function itFactory(
     return test;
   }
 
-  function only(
-    browsers: string[],
-    title: string,
-    fn?: Func | AsyncFunc
-  ): Test {
+  function only(browsers: string[], title: string, fn?: AsyncFunc): Test {
     const [parentSuite] = suites;
 
     return browsers.includes(parentSuite.ctx.browserName)
@@ -193,24 +188,20 @@ function itFactory(
       : it(title, fn);
   }
 
-  function skip(
-    browsers: string[],
-    title: string,
-    fn?: Func | AsyncFunc
-  ): Test | void {
+  function skip(browsers: string[], title: string, fn?: AsyncFunc): Test {
     const [parentSuite] = suites;
 
     return browsers.includes(parentSuite.ctx.browserName)
       ? it(title)
       : it(title, fn);
   }
-  // function retries(n: number): void {
-  //   common.test.retries(n);
-  // }
+  function retries(n: number): void {
+    common.test.retries(n);
+  }
 
   it.only = only;
   it.skip = skip;
-  // it.retries = retries;
+  it.retries = retries;
 
   // NOTE We can't redefine interface, only extend it
   return it as TestFunction;

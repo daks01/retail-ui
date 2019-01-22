@@ -51,10 +51,10 @@ declare module "mocha" {
   }
 
   export interface ExclusiveTestFunction extends ExclusiveTestFunction {
-    (browsers: string[], title: string, fn?: Func | AsyncFunc): Test;
+    (browsers: string[], title: string, fn?: AsyncFunc): Test;
   }
 
   export interface PendingTestFunction extends PendingTestFunction {
-    (browsers: string[], title: string, fn?: Func | AsyncFunc): Test | void;
+    (browsers: string[], title: string, fn?: AsyncFunc): Test;
   }
 }
