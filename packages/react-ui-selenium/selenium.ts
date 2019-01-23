@@ -27,11 +27,10 @@ const config: Config = {
   }
 };
 
-// TODO Tests?
+// TODO Tests for interface?
 // browsers
-// parallel
+// parallel (need prebuild)
 // TODO react-selenium-testing
-// TODO refactor DRY
 
 type CreateSuite = (options: CreateOptions, parentSuite: Suite) => Suite;
 type Describer = (
