@@ -1,14 +1,5 @@
-import Mocha, {
-  Suite,
-  AsyncFunc,
-  Test,
-  TestFunction,
-  SuiteFunction
-} from "mocha";
-import commonInterface, {
-  CommonFunctions,
-  CreateOptions
-} from "mocha/lib/interfaces/common";
+import Mocha, { Suite, AsyncFunc, Test, TestFunction, SuiteFunction } from "mocha";
+import commonInterface, { CommonFunctions, CreateOptions } from "mocha/lib/interfaces/common";
 import { Builder, until, By } from "selenium-webdriver";
 
 interface Config {
@@ -33,11 +24,7 @@ const config: Config = {
 // TODO react-selenium-testing
 
 type CreateSuite = (options: CreateOptions, parentSuite: Suite) => Suite;
-type Describer = (
-  title: string,
-  fn: (this: Suite) => void,
-  createSuite: CreateSuite
-) => Suite | Suite[];
+type Describer = (title: string, fn: (this: Suite) => void, createSuite: CreateSuite) => Suite | Suite[];
 
 function createBrowserSuites(suites: Suite[]) {
   // @ts-ignore `context` and `mocha` args not used here
@@ -63,11 +50,7 @@ function createBrowserSuites(suites: Suite[]) {
   });
 }
 
-function storySuiteFactory(
-  story: string,
-  kindSuite: Suite,
-  suiteCreator: () => Suite
-) {
+function storySuiteFactory(story: string, kindSuite: Suite, suiteCreator: () => Suite) {
   const storySuite = suiteCreator();
 
   Object.assign(storySuite.ctx, kindSuite.ctx, { story });
@@ -83,16 +66,8 @@ function storySuiteFactory(
   return storySuite;
 }
 
-function createDescriber(
-  browserSuites: Suite[],
-  suites: Suite[],
-  file: string
-): Describer {
-  return function describer(
-    title: string,
-    fn: (this: Suite) => void,
-    createSuite: CreateSuite
-  ): Suite | Suite[] {
+function createDescriber(browserSuites: Suite[], suites: Suite[], file: string): Describer {
+  return function describer(title: string, fn: (this: Suite) => void, createSuite: CreateSuite): Suite | Suite[] {
     const [parentSuite] = suites;
 
     if (parentSuite.root) {
@@ -111,47 +86,30 @@ function createDescriber(
       });
     }
 
-    return storySuiteFactory(title, parentSuite, () =>
-      createSuite({ title, fn, file }, parentSuite)
-    );
+    return storySuiteFactory(title, parentSuite, () => createSuite({ title, fn, file }, parentSuite));
   };
 }
 
-function describeFactory(
-  describer: Describer,
-  common: CommonFunctions
-): SuiteFunction {
+function describeFactory(describer: Describer, common: CommonFunctions): SuiteFunction {
   function describe(title: string, fn: (this: Suite) => void) {
     return describer(title, fn, options => common.suite.create(options));
   }
 
-  function only(
-    browsers: string[],
-    title: string,
-    fn: (this: Suite) => void
-  ): Suite | Suite[] {
+  function only(browsers: string[], title: string, fn: (this: Suite) => void): Suite | Suite[] {
     return describer(
       title,
       fn,
       (options, parentSuite) =>
-        browsers.includes(parentSuite.ctx.browserName)
-          ? common.suite.only(options)
-          : common.suite.create(options)
+        browsers.includes(parentSuite.ctx.browserName) ? common.suite.only(options) : common.suite.create(options)
     );
   }
 
-  function skip(
-    browsers: string[],
-    title: string,
-    fn: (this: Suite) => void
-  ): Suite | Suite[] {
+  function skip(browsers: string[], title: string, fn: (this: Suite) => void): Suite | Suite[] {
     return describer(
       title,
       fn,
       (options, parentSuite) =>
-        browsers.includes(parentSuite.ctx.browserName)
-          ? common.suite.skip(options)
-          : common.suite.create(options)
+        browsers.includes(parentSuite.ctx.browserName) ? common.suite.skip(options) : common.suite.create(options)
     );
   }
 
@@ -162,11 +120,7 @@ function describeFactory(
   return describe as SuiteFunction;
 }
 
-function itFactory(
-  suites: Suite[],
-  file: string,
-  common: CommonFunctions
-): TestFunction {
+function itFactory(suites: Suite[], file: string, common: CommonFunctions): TestFunction {
   // NOTE copy-paste from bdd-interface
   function it(title: string, fn?: AsyncFunc): Test {
     const [parentSuite] = suites;
@@ -182,17 +136,13 @@ function itFactory(
   function only(browsers: string[], title: string, fn?: AsyncFunc): Test {
     const [parentSuite] = suites;
 
-    return browsers.includes(parentSuite.ctx.browserName)
-      ? common.test.only(mocha, it(title, fn))
-      : it(title, fn);
+    return browsers.includes(parentSuite.ctx.browserName) ? common.test.only(mocha, it(title, fn)) : it(title, fn);
   }
 
   function skip(browsers: string[], title: string, fn?: AsyncFunc): Test {
     const [parentSuite] = suites;
 
-    return browsers.includes(parentSuite.ctx.browserName)
-      ? it(title)
-      : it(title, fn);
+    return browsers.includes(parentSuite.ctx.browserName) ? it(title) : it(title, fn);
   }
   function retries(n: number): void {
     common.test.retries(n);
@@ -207,9 +157,7 @@ function itFactory(
 }
 
 // @ts-ignore
-export default (Mocha.interfaces.selenium = function seleniumInterface(
-  suite: Suite
-) {
+export default (Mocha.interfaces.selenium = function seleniumInterface(suite: Suite) {
   const suites = [suite];
   const browserSuites = createBrowserSuites(suites);
 
