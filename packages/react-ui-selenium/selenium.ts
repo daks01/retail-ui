@@ -1,16 +1,21 @@
+import path from "path";
 import Mocha, { Suite, AsyncFunc, Test, TestFunction, SuiteFunction } from "mocha";
 import commonInterface, { CommonFunctions, CreateOptions } from "mocha/lib/interfaces/common";
-import { Builder, until, By } from "selenium-webdriver";
+import { Builder, until, By, WebElement, WebDriver } from "selenium-webdriver";
+
+import chai from "chai";
 
 interface Config {
   gridUrl: string;
   hostUrl: string;
+  imagesPath: string;
   browsers: { [key: string]: { browserName: string } };
 }
 
 const config: Config = {
   gridUrl: "http://screen-dbg:shot@grid.testkontur.ru/wd/hub",
   hostUrl: "http://10.34.0.149:6060/iframe.html",
+  imagesPath: path.join(__dirname, "images"),
   browsers: {
     chrome: { browserName: "chrome" },
     firefox: { browserName: "firefox" },
@@ -18,10 +23,34 @@ const config: Config = {
   }
 };
 
+// NOTE Chai don't have right types, see https://github.com/DefinitelyTyped/DefinitelyTyped/issues/29922
+chai.use(({ Assertion }, utils) => {
+  utils.addMethod(Assertion.prototype, "matchImage", function matchImage(base64Str: string): void {
+    const element: WebElement = utils.flag(this, "object");
+
+    element.getDriver();
+    // browser + kind + story + test + file
+    const imagePath = join(__dirname, "../report/image");
+    // const orig = PNG.sync.read(readFileSync(`${imagePath}-orig.png`));
+    // const diff = new PNG({ width: orig.width, height: orig.height });
+    const base64String = await this.browser.findElement(By.css("#test-element")).takeScreenshot();
+    // const actual = PNG.sync.read(Buffer.from(base64String, "base64"));
+    const actual = Buffer.from(base64String, "base64");
+    // pixelmatch(orig.data, actual.data, diff.data);
+    // writeFileSync(`${imagePath}-actual.png`, actual.data);
+    // writeFileSync(`${imagePath}-diff.png`, diff.data);
+    writeFileSync(`${imagePath}.png`, actual);
+    addContext(this, `file://${imagePath}.png`);
+  });
+});
+
+// TODO put context of test in browser
+
 // TODO Tests for interface?
 // browsers
 // parallel (need prebuild)
 // TODO react-selenium-testing
+// TODO refactor types
 
 type CreateSuite = (options: CreateOptions, parentSuite: Suite) => Suite;
 type Describer = (title: string, fn: (this: Suite) => void, createSuite: CreateSuite) => Suite | Suite[];
@@ -44,6 +73,7 @@ function createBrowserSuites(suites: Suite[]) {
         .usingServer(config.gridUrl)
         .withCapabilities(capabilities)
         .build();
+      browserSuite.ctx.browser.context = browserSuite.ctx;
     });
 
     return browserSuite;

@@ -14,6 +14,10 @@ import {
 } from "mocha";
 import { WebDriver } from "selenium-webdriver";
 
+export interface Browser extends WebDriver {
+  context?: Context;
+}
+
 declare module "mocha" {
   // NOTE @types/mocha don't have `retries` method in MochaGlobals
   export interface MochaGlobals extends MochaGlobals {
@@ -21,7 +25,7 @@ declare module "mocha" {
   }
 
   export interface Context extends Context {
-    browser: WebDriver;
+    browser: Browser;
     browserName: string;
     kind: string;
     story: string;
@@ -34,15 +38,11 @@ declare module "mocha" {
   }
 
   export interface ExclusiveSuiteFunction extends ExclusiveSuiteFunction {
-    (browsers: string[], title: string, fn: (this: Suite) => void):
-      | Suite
-      | Suite[];
+    (browsers: string[], title: string, fn: (this: Suite) => void): Suite | Suite[];
   }
 
   export interface PendingSuiteFunction extends PendingSuiteFunction {
-    (browsers: string[], title: string, fn: (this: Suite) => void):
-      | Suite
-      | Suite[];
+    (browsers: string[], title: string, fn: (this: Suite) => void): Suite | Suite[];
   }
 
   export interface TestFunction extends TestFunction {
