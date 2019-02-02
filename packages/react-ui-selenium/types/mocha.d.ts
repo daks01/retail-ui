@@ -18,6 +18,7 @@ export interface Browser extends WebDriver {
   context?: Context;
 }
 
+// TODO refactor types
 declare module "mocha" {
   // NOTE @types/mocha don't have `retries` method in MochaGlobals
   export interface MochaGlobals extends MochaGlobals {
