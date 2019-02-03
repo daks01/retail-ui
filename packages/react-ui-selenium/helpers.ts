@@ -1,8 +1,14 @@
-import { Suite, AsyncFunc, Test, TestFunction, SuiteFunction } from "mocha";
+import chai from "chai";
+import { Suite, AsyncFunc, Test, TestFunction, SuiteFunction, Context } from "mocha";
 import commonInterface, { CommonFunctions, CreateOptions } from "mocha/lib/interfaces/common";
 import { Builder, until, By } from "selenium-webdriver";
 
+import chaiImage from "./chai-image";
 import config from "./config";
+
+const testContext: string[] = [];
+
+chai.use(chaiImage(testContext));
 
 type CreateSuite = (options: CreateOptions, parentSuite: Suite) => Suite;
 type Describer = (title: string, fn: (this: Suite) => void, createSuite: CreateSuite) => Suite | Suite[];
@@ -41,8 +47,12 @@ function storySuiteFactory(story: string, kindSuite: Suite, suiteCreator: () => 
     const selectedKind = encodeURIComponent(this.kind);
     const selectedStory = encodeURIComponent(this.story);
     const storybookQuery = `selectedKind=${selectedKind}&selectedStory=${selectedStory}`;
+
     await this.browser.get(`${config.hostUrl}?${storybookQuery}`);
     await this.browser.wait(until.elementLocated(By.css("#test-element")));
+
+    testContext.length = 0;
+    testContext.push(this.browserName, this.kind, this.story);
   });
 
   return storySuite;
@@ -102,6 +112,18 @@ export function describeFactory(describer: Describer, common: CommonFunctions): 
   return describe as SuiteFunction;
 }
 
+function wrap(origFn: AsyncFunc, callback: () => void): AsyncFunc {
+  function fn(this: Context) {
+    callback();
+
+    return origFn.call(this);
+  }
+  fn.toString = function toString() {
+    return origFn.toString();
+  };
+  return fn;
+}
+
 export function itFactory(suites: Suite[], file: string, common: CommonFunctions): TestFunction {
   // NOTE copy-paste from bdd-interface
   function it(title: string, fn?: AsyncFunc): Test {
@@ -109,7 +131,7 @@ export function itFactory(suites: Suite[], file: string, common: CommonFunctions
     if (parentSuite.isPending()) {
       fn = undefined;
     }
-    const test = new Test(title, fn);
+    const test = new Test(title, fn && wrap(fn, () => testContext.push(title)));
     test.file = file;
     parentSuite.addTest(test);
     return test;

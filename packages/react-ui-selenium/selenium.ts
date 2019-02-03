@@ -1,12 +1,7 @@
 import Mocha, { Suite } from "mocha";
 import commonInterface from "mocha/lib/interfaces/common";
 
-import chai from "chai";
-
-import chaiImage from "./chai-image";
 import { createBrowserSuites, createDescriber, describeFactory, itFactory } from "./helpers";
-
-chai.use(chaiImage);
 
 // TODO Tests for interface?
 // parallel (need prebuild)

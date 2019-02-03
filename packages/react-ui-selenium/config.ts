@@ -3,14 +3,16 @@ import path from "path";
 interface Config {
   gridUrl: string;
   hostUrl: string;
-  imagesPath: string;
+  screenDir: string;
+  reportDir: string;
   browsers: { [key: string]: { browserName: string } };
 }
 
 const config: Config = {
   gridUrl: "http://screen-dbg:shot@grid.testkontur.ru/wd/hub",
   hostUrl: "http://10.34.0.149:6060/iframe.html",
-  imagesPath: path.join(__dirname, "images"),
+  screenDir: path.join(__dirname, "images"),
+  reportDir: path.join(__dirname, "report"),
   browsers: {
     chrome: { browserName: "chrome" },
     firefox: { browserName: "firefox" },
