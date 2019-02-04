@@ -14,10 +14,6 @@ import {
 } from "mocha";
 import { WebDriver } from "selenium-webdriver";
 
-export interface Browser extends WebDriver {
-  context?: Context;
-}
-
 // TODO refactor types
 declare module "mocha" {
   // NOTE @types/mocha don't have `retries` method in MochaGlobals
@@ -26,7 +22,7 @@ declare module "mocha" {
   }
 
   export interface Context extends Context {
-    browser: Browser;
+    browser: WebDriver;
     browserName: string;
     kind: string;
     story: string;

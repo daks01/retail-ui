@@ -1,3 +1,4 @@
+import http from "http";
 import chai from "chai";
 import { Suite, AsyncFunc, Test, TestFunction, SuiteFunction, Context } from "mocha";
 import commonInterface, { CommonFunctions, CreateOptions } from "mocha/lib/interfaces/common";
@@ -31,11 +32,26 @@ export function createBrowserSuites(suites: Suite[]) {
         .usingServer(config.gridUrl)
         .withCapabilities(capabilities)
         .build();
-      browserSuite.ctx.browser.context = browserSuite.ctx;
     });
 
     return browserSuite;
   });
+}
+
+function getRealIp(): Promise<string> {
+  return new Promise((resolve, reject) =>
+    http.get("http://fake.dev.kontur/ip", res => {
+      if (res.statusCode !== 200) {
+        return reject(new Error(`Couldn't resolve real ip for \`localhost\`. Status code: ${res.statusCode}`));
+      }
+
+      let data = "";
+
+      res.setEncoding("utf8");
+      res.on("data", chunk => (data += chunk));
+      res.on("end", () => resolve(data));
+    })
+  );
 }
 
 function storySuiteFactory(story: string, kindSuite: Suite, suiteCreator: () => Suite) {
@@ -48,7 +64,13 @@ function storySuiteFactory(story: string, kindSuite: Suite, suiteCreator: () => 
     const selectedStory = encodeURIComponent(this.story);
     const storybookQuery = `selectedKind=${selectedKind}&selectedStory=${selectedStory}`;
 
-    await this.browser.get(`${config.hostUrl}?${storybookQuery}`);
+    if (config.address.host === "localhost") {
+      config.address.host = await getRealIp();
+    }
+
+    const hostUrl = `http://${config.address.host}:${config.address.port}/${config.address.path}`;
+
+    await this.browser.get(`${hostUrl}?${storybookQuery}`);
     await this.browser.wait(until.elementLocated(By.css("#test-element")));
 
     testContext.length = 0;
