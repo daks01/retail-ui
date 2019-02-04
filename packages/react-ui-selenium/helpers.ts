@@ -14,30 +14,6 @@ chai.use(chaiImage(testContext));
 type CreateSuite = (options: CreateOptions, parentSuite: Suite) => Suite;
 type Describer = (title: string, fn: (this: Suite) => void, createSuite: CreateSuite) => Suite | Suite[];
 
-export function createBrowserSuites(suites: Suite[]) {
-  // @ts-ignore `context` and `mocha` args not used here
-  const commonGlobal = commonInterface(suites);
-
-  return Object.entries(config.browsers).map(([browserName, capabilities]) => {
-    const browserSuite = commonGlobal.suite.create({
-      title: browserName,
-      file: "",
-      fn: () => null
-    });
-
-    browserSuite.ctx.browserName = browserName;
-
-    browserSuite.beforeAll(async () => {
-      browserSuite.ctx.browser = await new Builder()
-        .usingServer(config.gridUrl)
-        .withCapabilities(capabilities)
-        .build();
-    });
-
-    return browserSuite;
-  });
-}
-
 function getRealIp(): Promise<string> {
   return new Promise((resolve, reject) =>
     http.get("http://fake.dev.kontur/ip", res => {
@@ -54,24 +30,61 @@ function getRealIp(): Promise<string> {
   );
 }
 
+export function createBrowserSuites(suites: Suite[]) {
+  // @ts-ignore `context` and `mocha` args not used here
+  const commonGlobal = commonInterface(suites);
+
+  return Object.entries(config.browsers).map(([browserName, capabilities]) => {
+    const browserSuite = commonGlobal.suite.create({
+      title: browserName,
+      file: "",
+      fn: () => null
+    });
+
+    browserSuite.ctx.browserName = browserName;
+
+    browserSuite.beforeAll(async () => {
+      const browser = await new Builder()
+        .usingServer(config.gridUrl)
+        .withCapabilities(capabilities)
+        .build();
+
+      if (config.address.host === "localhost") {
+        config.address.host = await getRealIp();
+      }
+
+      const hostUrl = `http://${config.address.host}:${config.address.port}/${config.address.path}`;
+      const storybookQuery = "selectedKind=All&selectedStory=Stories";
+
+      await browser.get(`${hostUrl}?${storybookQuery}`);
+      await browser.wait(until.elementLocated(By.css("#root")), 10000);
+
+      browserSuite.ctx.browser = browser;
+    });
+
+    return browserSuite;
+  });
+}
+
 function storySuiteFactory(story: string, kindSuite: Suite, suiteCreator: () => Suite) {
   const storySuite = suiteCreator();
 
   Object.assign(storySuite.ctx, kindSuite.ctx, { story });
 
   storySuite.beforeEach(async function() {
-    const selectedKind = encodeURIComponent(this.kind);
-    const selectedStory = encodeURIComponent(this.story);
-    const storybookQuery = `selectedKind=${selectedKind}&selectedStory=${selectedStory}`;
-
-    if (config.address.host === "localhost") {
-      config.address.host = await getRealIp();
-    }
-
-    const hostUrl = `http://${config.address.host}:${config.address.port}/${config.address.path}`;
-
-    await this.browser.get(`${hostUrl}?${storybookQuery}`);
-    await this.browser.wait(until.elementLocated(By.css("#test-element")));
+    // TODO reset mouse position
+    await this.browser.executeScript(
+      // tslint:disable
+      // @ts-ignore
+      function(kind, story) {
+        window.scrollTo(0, 0);
+        // @ts-ignore
+        window.renderStory({ kind: kind, story: story });
+        // tslint:enable
+      },
+      this.kind,
+      this.story
+    );
 
     testContext.length = 0;
     testContext.push(this.browserName, this.kind, this.story);
