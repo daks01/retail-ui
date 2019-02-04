@@ -6,7 +6,7 @@ describe("Input", function() {
     it.skip(["firefox", "ie11"], "should have expected text", async function() {
       const element = await this.browser.findElement(By.css("#test-element"));
 
-      expect(element.takeScreenshot()).to.matchImage("inputs");
+      return expect(await element.takeScreenshot()).to.matchImage("inputs");
     });
   });
 

@@ -1,3 +1,4 @@
+import { promisify } from "util";
 import fs, { Stats } from "fs";
 import path from "path";
 import { PNG } from "pngjs";
@@ -6,12 +7,17 @@ import mkdirp from "mkdirp";
 
 import config from "./config";
 
-function getStat(filePath: string): Stats | null {
+const statAsync = promisify(fs.stat);
+const readFileAsync = promisify(fs.readFile);
+const writeFileAsync = promisify(fs.writeFile);
+const mkdirpAsync = promisify(mkdirp);
+
+async function getStat(filePath: string): Promise<Stats | null> {
   try {
-    return fs.statSync(filePath);
+    return await statAsync(filePath);
   } catch (error) {
     if (error.code === "ENOENT") {
-      return null;
+      return Promise.resolve(null);
     }
     throw error;
   }
@@ -65,51 +71,52 @@ function compareImages(expect: Buffer, actual: Buffer): Buffer {
   return PNG.sync.write(diffImage);
 }
 
-function saveImages(imageDir: string, imageName: string, expect: Buffer, actual: Buffer, diff: Buffer) {
+async function saveImages(imageDir: string, imageName: string, expect: Buffer, actual: Buffer, diff: Buffer) {
   const imagePath = path.join(imageDir, `${imageName}`);
 
-  mkdirp.sync(imageDir);
-  fs.writeFileSync(`${imagePath}-expect.png`, expect);
-  fs.writeFileSync(`${imagePath}-actual.png`, actual);
-  fs.writeFileSync(`${imagePath}-diff.png`, diff);
-}
+  await mkdirpAsync(imageDir);
 
-// TODO read async?
+  return Promise.all([
+    writeFileAsync(`${imagePath}-expect.png`, expect),
+    writeFileAsync(`${imagePath}-actual.png`, actual),
+    writeFileAsync(`${imagePath}-diff.png`, diff)
+  ]);
+}
 
 // NOTE Chai don't have right types, see https://github.com/DefinitelyTyped/DefinitelyTyped/issues/29922
 export default (context: string[]) =>
   function chaiImage({ Assertion }: any, utils: Chai.ChaiUtils) {
-    utils.addMethod(Assertion.prototype, "matchImage", function matchImage(imageName: string) {
+    utils.addMethod(Assertion.prototype, "matchImage", async function matchImage(imageName: string) {
       const actualBase64: string = utils.flag(this, "object");
       const actual = Buffer.from(actualBase64, "base64");
 
       // context => [browser, kind, story, test]
       const expectImageDir = path.join(config.screenDir, ...context);
-      const expectImageStat = getStat(path.join(expectImageDir, `${imageName}.png`));
+      const expectImageStat = await getStat(path.join(expectImageDir, `${imageName}.png`));
 
       const reportImageDir = path.join(config.reportDir, ...context);
 
       if (!expectImageStat) {
-        // TODO правильный месадж
-        mkdirp.sync(reportImageDir);
-        fs.writeFileSync(path.join(reportImageDir, `${imageName}-actual.png`), actual);
-        throw new Error("Нет картинки");
+        await mkdirpAsync(reportImageDir);
+        await writeFileAsync(path.join(reportImageDir, `${imageName}-actual.png`), actual);
+
+        throw new Error(`Expected image '${imageName}' does not exists`);
       }
 
-      // TODO если эксепшон не будет срабатывать, то можно перенести его после условия
-      const expect = fs.readFileSync(expectImageDir);
+      const expect = await readFileAsync(path.join(expectImageDir, `${imageName}.png`));
 
-      if (expectImageStat.size === actual.length) {
-        if (!actual.equals(expect)) {
-          throw new Error("Картинки равны по размеру, но отличаются по контенту");
-        }
+      const equalBySize = expectImageStat.size === actual.length;
+      const equalByContent = actual.equals(expect);
+
+      if (equalBySize && equalByContent) {
         return;
       }
 
       const diff = compareImages(expect, actual);
 
-      saveImages(reportImageDir, imageName, expect, actual, diff);
+      await saveImages(reportImageDir, imageName, expect, actual, diff);
 
-      throw new Error("Картинки не совпадают");
+      // NOTE В случае, если имеющие одинаковый размер картинки не будут отличаться по содержимому, то код можно упростить
+      throw new Error(`Expected image '${imageName}' to match ${equalBySize ? "but was equal by size" : ""}`);
     });
   };
