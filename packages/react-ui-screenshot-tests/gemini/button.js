@@ -2,52 +2,64 @@
 
 const renderStory = require("./utils").renderStory;
 
-const testScenario = suite => {
-  suite
-    .capture("idle")
-    .capture("hover", (actions, find) => {
-      actions.mouseMove(find("button"));
-    })
-    .capture("mouseLeave", (actions, find) => {
-      actions.mouseMove(find("body"), [0, 0]);
-    })
-    .capture("pressed", (actions, find) => {
-      actions.mouseDown(find("button"));
-    })
-    .capture("clicked", (actions, find) => {
-      actions.mouseUp(find("button"));
-    })
-    .capture("clickedOutside", (actions, find) => {
-      actions.click(find("body"), 0, [1, 1]);
-    })
-    .capture("tabPress", (actions, find) => {
-      actions.sendKeys(gemini.TAB);
-    });
+const testScenario = story => {
+  gemini.suite("idle", suite => {
+    suite
+      .before(story)
+      .setCaptureElements("#test-element")
+      .capture("idle");
+  });
+  gemini.suite("hover", suite => {
+    suite
+      .before(story)
+      .setCaptureElements("#test-element")
+      .capture("hover", (actions, find) => {
+        actions.mouseMove(find("button"));
+      });
+  });
+  gemini.suite("mouseLeave", suite => {
+    suite
+      .before(story)
+      .setCaptureElements("#test-element")
+      .capture("mouseLeave", (actions, find) => {
+        actions.mouseMove(find("button"));
+        actions.mouseMove(find("body"), [0, 0]);
+      });
+  });
+  gemini.suite("pressed", suite => {
+    suite
+      .before(story)
+      .setCaptureElements("#test-element")
+      .capture("pressed", (actions, find) => {
+        actions.mouseDown(find("button"));
+      });
+  });
+  gemini.suite("clicked", suite => {
+    suite
+      .before(story)
+      .setCaptureElements("#test-element")
+      .capture("clicked", (actions, find) => {
+        actions.click(find("button"));
+      });
+  });
+  gemini.suite("clickedOutside", suite => {
+    suite
+      .before(story)
+      .setCaptureElements("#test-element")
+      .capture("clickedOutside", (actions, find) => {
+        actions.click(find("button"));
+        actions.click(find("body"), 0, [1, 1]);
+      });
+  });
 };
 
 gemini.suite("button", suite => {
-  testScenario(suite.before(renderStory("Button", "playground")).setCaptureElements("#test-element"));
-});
+  testScenario(renderStory("Button", "playground"));
+  testScenario(renderStory("Button", "use link"));
+  testScenario(renderStory("Button", "use link with icon"));
+  testScenario(renderStory("Button", "multiline text with link button"));
+  testScenario(renderStory("Button", "with error"));
 
-gemini.suite("button use link", suite => {
-  testScenario(suite.before(renderStory("Button", "use link")).setCaptureElements("#test-element"));
-});
-
-gemini.suite("button use link with icon", suite => {
-  testScenario(suite.before(renderStory("Button", "use link with icon")).setCaptureElements("#test-element"));
-});
-
-gemini.suite("button link multiline", suite => {
-  testScenario(
-    suite.before(renderStory("Button", "multiline text with link button")).setCaptureElements("#test-element")
-  );
-});
-
-gemini.suite("button use link with error", suite => {
-  testScenario(suite.before(renderStory("Button", "with error")).setCaptureElements("#test-element"));
-});
-
-gemini.suite("Button arrows", suite => {
   suite
     .before(renderStory("Button", "arrow table"))
     .setCaptureElements("#test-element")
