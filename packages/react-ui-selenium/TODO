@@ -1,0 +1,16 @@
+/*
+const tests = [{
+  kind, story, it, ast, skip, only
+}]
+
+// TODO skip
+[].concat(...browsers.map(b => tests.map(t => ({...t, browser }))))
+
+paralell
+
+divide tests by limit
+*/
+
+
+
+//
