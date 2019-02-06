@@ -12,9 +12,9 @@ function button() {
     const element = await this.browser.findElement(By.css("#test-element"));
     const button = await element.findElement(By.css("button"));
 
+    // @ts-ignore
     await this.browser
-      .actions()
-      // @ts-ignore
+      .actions({ bridge: true })
       .move({ origin: button })
       .perform();
 
@@ -26,9 +26,9 @@ function button() {
     const button = await element.findElement(By.css("button"));
     const body = await this.browser.findElement(By.css("body"));
 
+    // @ts-ignore
     await this.browser
-      .actions()
-      // @ts-ignore
+      .actions({ bridge: true })
       .move({ origin: button })
       .move({ origin: body })
       .perform();
@@ -40,18 +40,18 @@ function button() {
     const element = await this.browser.findElement(By.css("#test-element"));
     const button = await element.findElement(By.css("button"));
 
+    // @ts-ignore
     await this.browser
-      .actions()
-      // @ts-ignore
+      .actions({ bridge: true })
       .move({ origin: button })
       .press()
       .perform();
 
     await expect(await element.takeScreenshot()).to.matchImage("pressed");
 
+    // @ts-ignore
     await this.browser
-      .actions()
-      // @ts-ignore
+      .actions({ bridge: true })
       .release()
       .perform();
   });
@@ -59,8 +59,9 @@ function button() {
   it("clicked", async function() {
     const element = await this.browser.findElement(By.css("#test-element"));
 
+    // @ts-ignore
     await this.browser
-      .actions()
+      .actions({ bridge: true })
       .click(await element.findElement(By.css("button")))
       .perform();
 
@@ -70,8 +71,9 @@ function button() {
   it("clickedOutside", async function() {
     const element = await this.browser.findElement(By.css("#test-element"));
 
+    // @ts-ignore
     await this.browser
-      .actions()
+      .actions({ bridge: true })
       .click(await element.findElement(By.css("button")))
       .click(await this.browser.findElement(By.css("body")))
       .perform();
