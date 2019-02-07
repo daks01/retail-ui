@@ -1,6 +1,10 @@
 import path from "path";
 
-interface Config {
+export interface Capabilities {
+  browserName: string;
+}
+
+export interface Config {
   gridUrl: string;
   address: {
     host: string;
@@ -9,7 +13,7 @@ interface Config {
   };
   screenDir: string;
   reportDir: string;
-  browsers: { [key: string]: { browserName: string } };
+  browsers: { [key: string]: Capabilities };
 }
 
 const config: Config = {

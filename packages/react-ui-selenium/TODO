@@ -14,3 +14,11 @@ divide tests by limit
 
 
 //
+
+
+
+Perfomance (Button 93 tests)
+- gemini 3 threads 4 min
+- mocha 1 thread 2.5 min
+- mocha 3 threads 55 sec
+- mocha 6 threads 41 sec

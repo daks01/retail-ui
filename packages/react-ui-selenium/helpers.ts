@@ -1,11 +1,10 @@
-import http from "http";
 import chai from "chai";
-import { Suite, AsyncFunc, Test, TestFunction, SuiteFunction, Context } from "mocha";
+import { Suite, AsyncFunc, Test, TestFunction, SuiteFunction } from "mocha";
 import commonInterface, { CommonFunctions, CreateOptions } from "mocha/lib/interfaces/common";
-import { Builder, until, By } from "selenium-webdriver";
 
 import chaiImage from "./chai-image";
 import config from "./config";
+import { getBrowser, switchStory } from "./browser";
 
 const testContext: string[] = [];
 
@@ -13,22 +12,6 @@ chai.use(chaiImage(testContext));
 
 type CreateSuite = (options: CreateOptions, parentSuite: Suite) => Suite;
 type Describer = (title: string, fn: (this: Suite) => void, createSuite: CreateSuite) => Suite | Suite[];
-
-function getRealIp(): Promise<string> {
-  return new Promise((resolve, reject) =>
-    http.get("http://fake.dev.kontur/ip", res => {
-      if (res.statusCode !== 200) {
-        return reject(new Error(`Couldn't resolve real ip for \`localhost\`. Status code: ${res.statusCode}`));
-      }
-
-      let data = "";
-
-      res.setEncoding("utf8");
-      res.on("data", chunk => (data += chunk));
-      res.on("end", () => resolve(data));
-    })
-  );
-}
 
 export function createBrowserSuites(suites: Suite[]) {
   // @ts-ignore `context` and `mocha` args not used here
@@ -44,53 +27,11 @@ export function createBrowserSuites(suites: Suite[]) {
     browserSuite.ctx.browserName = browserName;
 
     browserSuite.beforeAll(async () => {
-      const browser = await new Builder()
-        .usingServer(config.gridUrl)
-        .withCapabilities(capabilities)
-        .build();
-
-      if (config.address.host === "localhost") {
-        config.address.host = await getRealIp();
-      }
-
-      const hostUrl = `http://${config.address.host}:${config.address.port}/${config.address.path}`;
-      const storybookQuery = "selectedKind=All&selectedStory=Stories";
-
-      await browser.get(`${hostUrl}?${storybookQuery}`);
-      await browser.wait(until.elementLocated(By.css("#root")), 10000);
-
-      browserSuite.ctx.browser = browser;
+      browserSuite.ctx.browser = await getBrowser(config, capabilities);
     });
 
     return browserSuite;
   });
-}
-
-function storySuiteFactory(story: string, kindSuite: Suite, suiteCreator: () => Suite) {
-  const storySuite = suiteCreator();
-
-  Object.assign(storySuite.ctx, kindSuite.ctx, { story });
-
-  storySuite.beforeEach(async function() {
-    // TODO reset mouse position
-    await this.browser.executeScript(
-      // tslint:disable
-      // @ts-ignore
-      function(kind, story) {
-        window.scrollTo(0, 0);
-        // @ts-ignore
-        window.renderStory({ kind: kind, story: story });
-        // tslint:enable
-      },
-      this.kind,
-      this.story
-    );
-
-    testContext.length = 0;
-    testContext.push(this.browserName, this.kind, this.story);
-  });
-
-  return storySuite;
 }
 
 export function createDescriber(browserSuites: Suite[], suites: Suite[], file: string): Describer {
@@ -105,15 +46,17 @@ export function createDescriber(browserSuites: Suite[], suites: Suite[], file: s
 
         suites.shift();
 
-        Object.assign(kindSuite.ctx, browserSuite.ctx, {
-          kind: title
-        });
-
         return kindSuite;
       });
     }
 
-    return storySuiteFactory(title, parentSuite, () => createSuite({ title, fn, file }, parentSuite));
+    const storySuite = createSuite({ title, fn, file }, parentSuite);
+
+    storySuite.beforeEach(async function() {
+      await switchStory.call(this, testContext);
+    });
+
+    return storySuite;
   };
 }
 
@@ -147,18 +90,6 @@ export function describeFactory(describer: Describer, common: CommonFunctions): 
   return describe as SuiteFunction;
 }
 
-function wrap(origFn: AsyncFunc, callback: () => void): AsyncFunc {
-  function fn(this: Context) {
-    callback();
-
-    return origFn.call(this);
-  }
-  fn.toString = function toString() {
-    return origFn.toString();
-  };
-  return fn;
-}
-
 export function itFactory(suites: Suite[], file: string, common: CommonFunctions): TestFunction {
   // NOTE copy-paste from bdd-interface
   function it(title: string, fn?: AsyncFunc): Test {
@@ -166,7 +97,7 @@ export function itFactory(suites: Suite[], file: string, common: CommonFunctions
     if (parentSuite.isPending()) {
       fn = undefined;
     }
-    const test = new Test(title, fn && wrap(fn, () => testContext.push(title)));
+    const test = new Test(title, fn);
     test.file = file;
     parentSuite.addTest(test);
     return test;
