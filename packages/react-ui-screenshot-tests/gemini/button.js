@@ -2,49 +2,52 @@
 
 const renderStory = require("./utils").renderStory;
 
-const testScenario = story => {
-  gemini.suite("idle", suite => {
+const testScenario = (kind, story) => {
+  gemini.suite(`${kind}_${story}_idle`, suite => {
     suite
-      .before(story)
+      .before(renderStory(kind, story))
       .setCaptureElements("#test-element")
       .capture("idle");
   });
-  gemini.suite("hover", suite => {
+  gemini.suite(`${kind}_${story}_hover`, suite => {
     suite
-      .before(story)
+      .before(renderStory(kind, story))
       .setCaptureElements("#test-element")
       .capture("hover", (actions, find) => {
         actions.mouseMove(find("button"));
       });
   });
-  gemini.suite("mouseLeave", suite => {
+  gemini.suite(`${kind}_${story}_mouseLeave`, suite => {
     suite
-      .before(story)
+      .before(renderStory(kind, story))
       .setCaptureElements("#test-element")
       .capture("mouseLeave", (actions, find) => {
         actions.mouseMove(find("button"));
         actions.mouseMove(find("body"), [0, 0]);
       });
   });
-  gemini.suite("pressed", suite => {
+  gemini.suite(`${kind}_${story}_pressed`, suite => {
     suite
-      .before(story)
+      .before(renderStory(kind, story))
       .setCaptureElements("#test-element")
       .capture("pressed", (actions, find) => {
         actions.mouseDown(find("button"));
+      })
+      .after((actions, find) => {
+        actions.mouseUp(find("button"));
       });
   });
-  gemini.suite("clicked", suite => {
+  gemini.suite(`${kind}_${story}_clicked`, suite => {
     suite
-      .before(story)
+      .before(renderStory(kind, story))
       .setCaptureElements("#test-element")
       .capture("clicked", (actions, find) => {
         actions.click(find("button"));
       });
   });
-  gemini.suite("clickedOutside", suite => {
+  gemini.suite(`${kind}_${story}_clickedOutside`, suite => {
     suite
-      .before(story)
+      .before(renderStory(kind, story))
       .setCaptureElements("#test-element")
       .capture("clickedOutside", (actions, find) => {
         actions.click(find("button"));
@@ -54,11 +57,11 @@ const testScenario = story => {
 };
 
 gemini.suite("button", suite => {
-  testScenario(renderStory("Button", "playground"));
-  testScenario(renderStory("Button", "use link"));
-  testScenario(renderStory("Button", "use link with icon"));
-  testScenario(renderStory("Button", "multiline text with link button"));
-  testScenario(renderStory("Button", "with error"));
+  testScenario("Button", "playground");
+  testScenario("Button", "use link");
+  testScenario("Button", "use link with icon");
+  testScenario("Button", "multiline text with link button");
+  testScenario("Button", "with error");
 
   suite
     .before(renderStory("Button", "arrow table"))
